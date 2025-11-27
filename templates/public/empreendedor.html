@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>AuraCash – Empreendedor</title>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="brand">
+                <span class="logo"></span>
+                AuraCash
+            </div>
+            <nav class="navbar">
+                <a href="tdashboard.html">Dashboard</a>
+                <a href="transacoes.html">Transações</a>
+                <a href="tcategorias.html">Categorias</a>
+                <a href="tmetas.html">Metas</a>
+                <a href="tcompartilhada.html">Compartilhada</a>
+                <a href="empreendedor.html">Empreendedor</a>
+                <a href="trelatorio.html">Relatórios</a>
+                <a href="tDicas.html">Dicas</a>
+                <a href="tConfiguracoes.html">Configurações</a>
+                <a href="#" id="logoutLink">Sair</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="grid grid-2">
+            <div class="card">
+                <h3>Gestão de Materiais</h3>
+                <form id="matForm" class="grid grid-3">
+                    <div>
+                        <label for="materialName">Nome do material</label>
+                        <input type="text" id="materialName" name="name" required>
+                    </div>
+                    <div>
+                        <label for="materialValue">Valor total (R$)</label>
+                        <input type="number" id="materialValue" name="totalValue" step="0.01" required>
+                    </div>
+                    <div>
+                        <label for="materialQty">Quantidade total</label>
+                        <input type="number" id="materialQty" name="qty" step="0.0001" required>
+                    </div>
+                    <div style="grid-column: span 3; align-self: end">
+                        <button class="btn btn-primary" type="submit">Adicionar material</button>
+                    </div>
+                </form>
+
+                <h4 style="margin-top: 20px;">Materiais cadastrados</h4>
+                <table class="table" id="matTable">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>Valor total</th>
+                            <th>Qtd total</th>
+                            <th>Custo unitário</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Materiais serão carregados aqui -->
+                        <tr>
+                            <td colspan="4" class="small">Nenhum material cadastrado.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h3>Cálculo de Custo de Produto</h3>
+                <form id="prodForm">
+                    <div class="form-group">
+                        <label for="productName">Nome do produto</label>
+                        <input type="text" id="productName" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Materiais usados</label>
+                        <div id="matUses">
+                            <!-- Linhas de materiais usados serão adicionadas aqui -->
+                        </div>
+                        <button class="btn btn-ghost" id="addUse">+ Adicionar material</button>
+                    </div>
+
+                    <br>
+                    <button class="btn btn-accent" type="submit">Calcular custo total</button>
+                </form>
+
+                <div id="result" class="card" style="margin-top: 20px; display: none;">
+                    <h4>Resultado do cálculo</h4>
+                    <div id="resultContent">
+                        <!-- Resultado será exibido aqui -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Ferramentas para Empreendedores</h3>
+            <div class="grid grid-3">
+                <div class="card">
+                    <h4>Calculadora de Preço</h4>
+                    <p class="small">Calcule o preço ideal de venda considerando custos e margem de lucro.</p>
+                    <button class="btn btn-ghost">Abrir calculadora</button>
+                </div>
+                <div class="card">
+                    <h4>Análise de Lucratividade</h4>
+                    <p class="small">Analise a lucratividade dos seus produtos e serviços.</p>
+                    <button class="btn btn-ghost">Ver análise</button>
+                </div>
+                <div class="card">
+                    <h4>Projeção de Crescimento</h4>
+                    <p class="small">Projete o crescimento do seu negócio baseado em dados históricos.</p>
+                    <button class="btn btn-ghost">Fazer projeção</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>AuraCash – Relatórios</title>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="brand">
+                <span class="logo"></span>
+                AuraCash
+            </div>
+            <nav class="navbar">
+                <a href="tdashboard.html">Dashboard</a>
+                <a href="transacoes.html">Transações</a>
+                <a href="tcategorias.html">Categorias</a>
+                <a href="tmetas.html">Metas</a>
+                <a href="tcompartilhada.html">Compartilhada</a>
+                <a href="empreendedor.html">Empreendedor</a>
+                <a href="trelatorio.html">Relatórios</a>
+                <a href="tDicas.html">Dicas</a>
+                <a href="tConfiguracoes.html">Configurações</a>
+                <a href="#" id="logoutLink">Sair</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>Despesas por categoria (mês atual)</h3>
+            <div id="pieChart">
+                <!-- Gráfico de pizza será carregado aqui -->
+                <div class="small">Nenhuma despesa registrada este mês.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Receitas vs Despesas por semana</h3>
+            <div id="barChart">
+                <!-- Gráfico de barras será carregado aqui -->
+                <div class="small">Nenhuma transação registrada para exibir gráfico.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Filtros do relatório</h3>
+            <form class="grid grid-3">
+                <div>
+                    <label for="reportType">Tipo de relatório</label>
+                    <select id="reportType">
+                        <option value="monthly">Mensal</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="yearly">Anual</option>
+                        <option value="custom">Personalizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="reportStart">Data inicial</label>
+                    <input type="date" id="reportStart">
+                </div>
+                <div>
+                    <label for="reportEnd">Data final</label>
+                    <input type="date" id="reportEnd">
+                </div>
+                <div style="grid-column: span 3">
+                    <button class="btn btn-primary" type="submit">Gerar relatório</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

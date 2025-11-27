@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>AuraCash – Conta Compartilhada</title>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="brand">
+                <span class="logo"></span>
+                AuraCash
+            </div>
+            <nav class="navbar">
+                <a href="tdashboard.html">Dashboard</a>
+                <a href="transacoes.html">Transações</a>
+                <a href="tcategorias.html">Categorias</a>
+                <a href="tmetas.html">Metas</a>
+                <a href="tcompartilhada.html">Compartilhada</a>
+                <a href="empreendedor.html">Empreendedor</a>
+                <a href="trelatorio.html">Relatórios</a>
+                <a href="tDicas.html">Dicas</a>
+                <a href="tConfiguracoes.html">Configurações</a>
+                <a href="#" id="logoutLink">Sair</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>Suas contas compartilhadas</h3>
+            <div id="list">
+                <!-- Lista de contas compartilhadas será carregada aqui -->
+                <div class="small">Você não participa de nenhuma conta compartilhada.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Criar nova conta compartilhada</h3>
+            <form id="newShared" class="grid grid-3">
+                <div>
+                    <label for="sharedName">Nome da conta</label>
+                    <input type="text" id="sharedName" name="name" required placeholder="Ex: Casa, Viagem...">
+                </div>
+                <div style="align-self: end">
+                    <button class="btn btn-primary" type="submit">Criar</button>
+                </div>
+            </form>
+
+            <hr>
+
+            <h3>Entrar em conta existente</h3>
+            <form id="joinShared" class="grid grid-3">
+                <div>
+                    <label for="sharedId">ID da conta</label>
+                    <input type="text" id="sharedId" name="id" required placeholder="sh_xxxxxxxx">
+                </div>
+                <div style="align-self: end">
+                    <button class="btn btn-accent" type="submit">Entrar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Exemplo de como uma conta compartilhada aparecerá -->
+        <div class="card hidden" id="sharedAccountExample">
+            <div style="display: flex; justify-content: space-between; align-items: center">
+                <div>
+                    <strong>Conta Compartilhada Exemplo</strong> 
+                    <span class="small">ID: sh_abc123def</span>
+                </div>
+                <div class="small">Membros: 2</div>
+            </div>
+            
+            <hr>
+            
+            <h4>Adicionar transação</h4>
+            <form class="grid grid-3">
+                <div>
+                    <label>Tipo</label>
+                    <select name="type">
+                        <option value="expense">Despesa</option>
+                        <option value="income">Receita</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Valor (R$)</label>
+                    <input type="number" name="amount" step="0.01" required>
+                </div>
+                <div style="align-self: end">
+                    <button class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+            
+            <h4 style="margin-top: 20px;">Histórico de transações</h4>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Valor</th>
+                        <th>Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        
+                    </tr>
+                    <tr>
+                        
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="alert ok">
+                
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>AuraCash – Cadastro</title>
+</head>
+<body>
+    <div class="container" style="max-width: 780px; margin-top: 50px">
+        <div class="card center">
+            <div class="brand" style="justify-content: center; font-size: 28px">
+                <span class="logo"></span>
+                AuraCash
+            </div>
+            <p class="small">Gerenciador de despesas pessoais e empreendedores</p>
+        </div>
+
+        <div class="card">
+            <h2>Criar conta</h2>
+            <form class="cadastrar-form">
+                <div class="form-group">
+                    <label for="name">Digite seu nome:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="cpf">Digite seu CPF:</label>
+                    <input type="text" id="cpf" name="cpf" required pattern="\d{11}" 
+                           placeholder="123.456.789-XX" title="Apenas 11 números">
+                </div>
+
+                <div class="form-group">
+                    <label for="income">Renda mensal (R$):</label>
+                    <input type="number" id="income" name="income" step="0.01" required>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <input type="checkbox" id="aid" name="aid">
+                    <label for="aid">Recebe algum auxílio governamental</label>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">E-mail:</label>
+                    <input type="email" id="email" name="email" required placeholder="voce@exemplo.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Senha:</label>
+                    <input type="password" id="password" name="password" required minlength="4">
+                </div>
+
+                <button class="btn btn-primary" type="submit">Cadastrar</button>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>© AuraCash - O seu melhor gerenciador de despesas pessoais!</p>
+        </div>
+    </footer>
+</body>
+</html>

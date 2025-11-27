@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>AuraCash – Categorias</title>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="brand">
+                <span class="logo"></span>
+                AuraCash
+            </div>
+            <nav class="navbar">
+                <a href="tdashboard.html">Dashboard</a>
+                <a href="transacoes.html">Transações</a>
+                <a href="tcategorias.html">Categorias</a>
+                <a href="tmetas.html">Metas</a>
+                <a href="tcompartilhada.html">Compartilhada</a>
+                <a href="empreendedor.html">Empreendedor</a>
+                <a href="trelatorio.html">Relatórios</a>
+                <a href="tDicas.html">Dicas</a>
+                <a href="tConfiguracoes.html">Configurações</a>
+                <a href="#" id="logoutLink">Sair</a>
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h3>Suas categorias</h3>
+            <div id="catList">
+                <!-- Lista de categorias será carregada aqui -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Nova categoria</h3>
+            <form id="catForm" class="grid grid-3">
+                <div>
+                    <label for="catName">Nome</label>
+                    <input type="text" id="catName" name="name" required>
+                </div>
+                <div>
+                    <label for="catType">Tipo</label>
+                    <select id="catType" name="type">
+                        <option value="expense">Despesa</option>
+                        <option value="income">Receita</option>
+                    </select>
+                </div>
+                <div style="align-self: end">
+                    <button class="btn btn-primary" type="submit">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
