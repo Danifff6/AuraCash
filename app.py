@@ -1,72 +1,84 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
 import os
 import sqlite3
+import traceback
+import logging
 
-# Obter o diretório atual
+# Configurar logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Configurações de caminho
 current_dir = os.path.dirname(os.path.abspath(__file__))
 template_dir = os.path.join(current_dir, 'templates')
 static_dir = os.path.join(current_dir, 'static')
 
-print(f"📁 Diretório atual: {current_dir}")
-print(f"📄 Pasta de templates: {template_dir}")
-print(f"🎨 Pasta static: {static_dir}")
-
-# Verificar se a pasta templates existe
-if os.path.exists(template_dir):
-    print("✅ Pasta templates encontrada!")
-    print("📄 Arquivos na pasta templates:")
-    for file in os.listdir(template_dir):
-        print(f"   - {file}")
-else:
-    print("❌ Pasta templates NÃO encontrada!")
-
 app = Flask(__name__, 
            template_folder=template_dir,
            static_folder=static_dir)
-app.secret_key = os.environ.get("SECRET_KEY", "auracash_secret_2025_dev")
+app.secret_key = os.environ.get("SECRET_KEY", "auracash_secret_key_2025")
 
 # ------------------------------------------
 # BANCO DE DADOS
 # ------------------------------------------
 
 def get_db():
-    conn = sqlite3.connect('auracash.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        conn = sqlite3.connect('auracash.db')
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        logger.error(f"Erro no banco: {e}")
+        return None
 
 def init_db():
-    conn = get_db()
-    c = conn.cursor()
-    
-    # Tabela de usuários
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            income REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Inserir usuário de teste se a tabela estiver vazia
-    c.execute("SELECT COUNT(*) FROM users")
-    count = c.fetchone()[0]
-    
-    if count == 0:
-        c.execute(
-            "INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
-            ("Usuário Teste", "teste@teste.com", "1234", 2000.0)
-        )
-        print("✅ Usuário de teste criado")
-    
-    conn.commit()
-    conn.close()
-    print("✅ Banco de dados inicializado")
+    try:
+        conn = get_db()
+        if not conn:
+            return
+            
+        c = conn.cursor()
+        
+        # Tabela de usuários
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                income REAL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Verificar se existe algum usuário
+        c.execute("SELECT COUNT(*) FROM users")
+        count = c.fetchone()[0]
+        
+        if count == 0:
+            c.execute(
+                "INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
+                ("Usuário Teste", "teste@teste.com", "1234", 2000.0)
+            )
+            logger.info("Usuário de teste criado")
+        
+        conn.commit()
+        conn.close()
+        logger.info("Banco inicializado")
+        
+    except Exception as e:
+        logger.error(f"Erro ao inicializar banco: {e}")
 
 # ------------------------------------------
-# ROTAS DE AUTENTICAÇÃO
+# MIDDLEWARE
+# ------------------------------------------
+
+@app.before_request
+def before_request():
+    logger.info(f"Request: {request.method} {request.path}")
+
+# ------------------------------------------
+# ROTAS PÚBLICAS
 # ------------------------------------------
 
 @app.route("/")
@@ -84,6 +96,9 @@ def login():
                 return render_template("tlogin.html", error="E-mail e senha são obrigatórios")
 
             conn = get_db()
+            if not conn:
+                return render_template("tlogin.html", error="Erro de conexão com o banco")
+
             c = conn.cursor()
             c.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
             user = c.fetchone()
@@ -98,9 +113,10 @@ def login():
                 return render_template("tlogin.html", error="E-mail ou senha incorretos")
 
         return render_template("tlogin.html")
+        
     except Exception as e:
-        print(f"❌ Erro em login: {str(e)}")
-        return render_template("tlogin.html", error="Erro interno do servidor")
+        logger.error(f"Erro em login: {e}")
+        return render_template("tlogin.html", error="Erro interno")
 
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
@@ -115,9 +131,11 @@ def cadastro():
                 return render_template("tcadastro.html", error="Todos os campos são obrigatórios")
 
             conn = get_db()
-            c = conn.cursor()
+            if not conn:
+                return render_template("tcadastro.html", error="Erro de conexão com o banco")
 
             try:
+                c = conn.cursor()
                 c.execute(
                     "INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
                     (name, email, password, float(income))
@@ -134,13 +152,8 @@ def cadastro():
 
         return render_template("tcadastro.html")
     except Exception as e:
-        print(f"❌ Erro em cadastro: {str(e)}")
-        return render_template("tcadastro.html", error="Erro interno do servidor")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/login")
+        logger.error(f"Erro em cadastro: {e}")
+        return render_template("tcadastro.html", error="Erro interno")
 
 # ------------------------------------------
 # ROTAS PROTEGIDAS
@@ -158,125 +171,157 @@ def login_required(f):
 @login_required
 def dashboard():
     try:
-        # Calcular totais básicos
-        conn = get_db()
-        c = conn.cursor()
-        
-        c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = 'income'", (session["user_id"],))
-        total_income = c.fetchone()[0] or 0
-        
-        c.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = 'expense'", (session["user_id"],))
-        total_expense = c.fetchone()[0] or 0
-        
-        balance = total_income - total_expense
-        conn.close()
-        
-        return render_template("tdashboard.html", 
-                             user=session.get("user_name", "Usuário"),
-                             total_income=total_income,
-                             total_expense=total_expense,
-                             balance=balance)
+        return render_template("tdashboard.html", user=session.get("user_name", "Usuário"))
     except Exception as e:
-        print(f"❌ Erro em dashboard: {str(e)}")
-        return render_template("tdashboard.html", 
-                             user=session.get("user_name", "Usuário"),
-                             total_income=0,
-                             total_expense=0,
-                             balance=0)
+        logger.error(f"Erro em dashboard: {e}")
+        return redirect("/login")
+
+@app.route("/transacoes")
+@login_required
+def transacoes():
+    try:
+        return render_template("transacoes.html")
+    except Exception as e:
+        logger.error(f"Erro em transacoes: {e}")
+        return "Página de transações"
+
+@app.route("/categorias")
+@login_required
+def categorias():
+    try:
+        return render_template("tcategorias.html")
+    except Exception as e:
+        logger.error(f"Erro em categorias: {e}")
+        return "Página de categorias"
+
+@app.route("/metas")
+@login_required
+def metas():
+    try:
+        return render_template("tmetas.html")
+    except Exception as e:
+        logger.error(f"Erro em metas: {e}")
+        return "Página de metas"
+
+@app.route("/relatorios")
+@login_required
+def relatorios():
+    try:
+        return render_template("trelatorio.html")
+    except Exception as e:
+        logger.error(f"Erro em relatorios: {e}")
+        return "Página de relatórios"
+
+@app.route("/dicas")
+@login_required
+def dicas():
+    try:
+        return render_template("tDicas.html")
+    except Exception as e:
+        logger.error(f"Erro em dicas: {e}")
+        return "Página de dicas"
+
+@app.route("/empreendedor")
+@login_required
+def empreendedor():
+    try:
+        return render_template("empreendedor.html")
+    except Exception as e:
+        logger.error(f"Erro em empreendedor: {e}")
+        return "Página empreendedor"
+
+@app.route("/compartilhada")
+@login_required
+def compartilhada():
+    try:
+        return render_template("tcompartilhada.html")
+    except Exception as e:
+        logger.error(f"Erro em compartilhada: {e}")
+        return "Página compartilhada"
 
 @app.route("/configuracoes")
 @login_required
 def configuracoes():
     try:
         conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],))
-        user = c.fetchone()
-        conn.close()
-        
-        return render_template("tConfiguracoes.html", user=user)
+        if conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],))
+            user = c.fetchone()
+            conn.close()
+            return render_template("tConfiguracoes.html", user=user)
+        return render_template("tConfiguracoes.html")
     except Exception as e:
-        print(f"❌ Erro em configuracoes: {str(e)}")
+        logger.error(f"Erro em configuracoes: {e}")
         return render_template("tConfiguracoes.html")
 
-# ------------------------------------------
-# ROTAS PARA PÁGINAS BÁSICAS
-# ------------------------------------------
-
-@app.route("/transacoes")
-@login_required
-def transacoes():
-    return "Página de transações - Em desenvolvimento"
-
-@app.route("/categorias")
-@login_required
-def categorias():
-    return "Página de categorias - Em desenvolvimento"
-
-@app.route("/metas")
-@login_required
-def metas():
-    return "Página de metas - Em desenvolvimento"
-
-@app.route("/relatorios")
-@login_required
-def relatorios():
-    return "Página de relatórios - Em desenvolvimento"
-
-@app.route("/dicas")
-@login_required
-def dicas():
-    return "Página de dicas - Em desenvolvimento"
-
-@app.route("/empreendedor")
-@login_required
-def empreendedor():
-    return "Página empreendedor - Em desenvolvimento"
-
-@app.route("/compartilhada")
-@login_required
-def compartilhada():
-    return "Página compartilhada - Em desenvolvimento"
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
 
 # ------------------------------------------
-# ROTAS DE API E UTILITÁRIOS
+# ROTAS DA API
+# ------------------------------------------
+
+@app.route("/api/transacao", methods=["POST"])
+@login_required
+def api_transacao():
+    try:
+        data = request.json
+        # Implementar criação de transação
+        return jsonify({"success": True, "message": "Transação criada"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/categoria", methods=["POST"])
+@login_required
+def api_categoria():
+    try:
+        data = request.json
+        # Implementar criação de categoria
+        return jsonify({"success": True, "message": "Categoria criada"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ------------------------------------------
+# ROTAS DE UTILIDADE
 # ------------------------------------------
 
 @app.route("/health")
-def health_check():
+def health():
     return jsonify({
         "status": "healthy",
-        "templates_folder": app.template_folder,
-        "static_folder": app.static_folder,
-        "templates_exists": os.path.exists(template_dir),
-        "templates_files": os.listdir(template_dir) if os.path.exists(template_dir) else []
+        "database": "connected" if get_db() else "disconnected"
     })
 
 @app.route("/debug")
 def debug():
     import os
-    info = {
-        "current_directory": os.getcwd(),
-        "files_in_root": os.listdir('.'),
-        "templates_directory": template_dir,
-        "templates_exists": os.path.exists(template_dir),
-        "templates_files": os.listdir(template_dir) if os.path.exists(template_dir) else "NOT FOUND",
+    return jsonify({
+        "python_version": os.sys.version,
+        "templates_folder": app.template_folder,
+        "static_folder": app.static_folder,
+        "templates": os.listdir('templates') if os.path.exists('templates') else [],
         "session_keys": list(session.keys())
-    }
-    return jsonify(info)
+    })
 
 # ------------------------------------------
 # INICIALIZAÇÃO
 # ------------------------------------------
 
 if __name__ == "__main__":
-    print("🚀 Iniciando AuraCash...")
+    print("Iniciando AuraCash...")
     
-    # Inicializar banco de dados
+    # Log da estrutura
+    print("Estrutura de arquivos:")
+    for item in os.listdir('.'):
+        print(f"  {item}")
+    if os.path.exists('templates'):
+        print("Templates:", os.listdir('templates'))
+    
+    # Inicializar banco
     init_db()
     
     port = int(os.environ.get("PORT", 5000))
-    debug = os.environ.get("DEBUG", "False").lower() == "true"
-    
-    print(f"🌐 Servidor iniciando na porta: {port}")
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    app.run(host="0.0.0.0", port=port, debug=True)
