@@ -1,11 +1,19 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, g
 import sqlite3
 import os
+import traceback
 from datetime import datetime
 
 app = Flask(__name__)
-app.secret_key = "auracash_secret_2025"
-app.config['DATABASE'] = 'auracash.db'
+app.secret_key = os.environ.get("SECRET_KEY", "auracash_secret_2025_dev")
+
+# Configuração do banco de dados
+if os.environ.get("DATABASE_URL"):
+    # PostgreSQL no Railway
+    app.config['DATABASE'] = os.environ.get('DATABASE_URL').replace('postgres://', 'postgresql://')
+else:
+    # SQLite local
+    app.config['DATABASE'] = 'auracash.db'
 
 # ------------------------------------------
 # CONEXÃO COM BANCO DE DADOS
@@ -13,171 +21,198 @@ app.config['DATABASE'] = 'auracash.db'
 
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(app.config['DATABASE'])
-        g.db.row_factory = sqlite3.Row
+        try:
+            if app.config['DATABASE'].startswith('postgresql://'):
+                # PostgreSQL
+                import psycopg2
+                g.db = psycopg2.connect(app.config['DATABASE'], sslmode='require')
+                g.db.autocommit = True
+            else:
+                # SQLite
+                g.db = sqlite3.connect(app.config['DATABASE'])
+                g.db.row_factory = sqlite3.Row
+        except Exception as e:
+            print(f"❌ Erro ao conectar com o banco: {e}")
+            return None
     return g.db
 
 def init_db():
     with app.app_context():
         db = get_db()
-        create_tables(db)
+        if db:
+            create_tables(db)
 
 def create_tables(db):
-    cursor = db.cursor()
+    try:
+        cursor = db.cursor()
+        
+        # Verificar se estamos usando PostgreSQL ou SQLite
+        is_postgres = app.config['DATABASE'].startswith('postgresql://')
+        
+        # Tabela de usuários
+        if is_postgres:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    income REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    income REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-    # Tabela de usuários
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            income REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        print("✅ Tabelas verificadas/criadas com sucesso!")
+        
+        # Inserir usuário de teste se a tabela estiver vazia
+        cursor.execute("SELECT COUNT(*) FROM users")
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            cursor.execute(
+                "INSERT INTO users (name, email, password, income) VALUES (%s, %s, %s, %s)" if is_postgres 
+                else "INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
+                ("Usuário Teste", "teste@teste.com", "1234", 2000.0)
+            )
+            print("✅ Usuário de teste criado")
+            
+    except Exception as e:
+        print(f"❌ Erro ao criar tabelas: {e}")
+        if not is_postgres:
+            db.rollback()
 
-    # Tabela de categorias
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            type TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    """)
-
-    # Tabela de transações
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            type TEXT NOT NULL,
-            category_id INTEGER,
-            amount REAL NOT NULL,
-            description TEXT,
-            date DATE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (category_id) REFERENCES categories (id)
-        )
-    """)
-
-    # Tabela de metas
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            category_id INTEGER,
-            target_amount REAL NOT NULL,
-            current_amount REAL DEFAULT 0,
-            start_date DATE NOT NULL,
-            end_date DATE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            FOREIGN KEY (category_id) REFERENCES categories (id)
-        )
-    """)
-
-    # Tabela de materiais (empreendedor)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS materials (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            total_value REAL NOT NULL,
-            quantity REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    """)
-
-    # Tabela de contas compartilhadas
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS shared_accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            share_id TEXT UNIQUE NOT NULL,
-            created_by INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (created_by) REFERENCES users (id)
-        )
-    """)
-
-    # Tabela de membros das contas compartilhadas
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS shared_account_members (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            account_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (account_id) REFERENCES shared_accounts (id),
-            FOREIGN KEY (user_id) REFERENCES users (id),
-            UNIQUE(account_id, user_id)
-        )
-    """)
-
-    db.commit()
-
-# Fechar conexão com o banco
 @app.teardown_appcontext
 def close_db(error):
     if hasattr(g, 'db'):
         g.db.close()
 
 # ------------------------------------------
-# ROTAS DE AUTENTICAÇÃO
+# MIDDLEWARE PARA LOGS
+# ------------------------------------------
+
+@app.before_request
+def log_request():
+    print(f"📥 {request.method} {request.path}")
+
+@app.after_request
+def log_response(response):
+    print(f"📤 {response.status_code} {request.path}")
+    return response
+
+# ------------------------------------------
+# ROTAS DE AUTENTICAÇÃO (CORRIGIDAS)
 # ------------------------------------------
 
 @app.route("/")
 def home():
-    if "user_id" in session:
-        return redirect("/dashboard")
-    return redirect("/login")
+    try:
+        if "user_id" in session:
+            return redirect("/dashboard")
+        return redirect("/login")
+    except Exception as e:
+        print(f"❌ Erro em home: {e}")
+        return "Erro interno do servidor", 500
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        email = request.form.get("email")
-        password = request.form.get("password")
+    try:
+        if request.method == "POST":
+            email = request.form.get("email", "").strip()
+            password = request.form.get("password", "").strip()
 
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
-        user = cursor.fetchone()
+            if not email or not password:
+                return render_template("login.html", error="E-mail e senha são obrigatórios")
 
-        if user:
-            session["user_id"] = user["id"]
-            session["user_name"] = user["name"]
-            session["user_email"] = user["email"]
-            return redirect("/dashboard")
-        else:
-            return render_template("tlogin.html", error="E-mail ou senha incorretos")
+            db = get_db()
+            if not db:
+                return render_template("login.html", error="Erro de conexão com o banco de dados")
 
-    return render_template("tlogin.html")
+            cursor = db.cursor()
+            
+            # Verificar se é PostgreSQL ou SQLite
+            is_postgres = app.config['DATABASE'].startswith('postgresql://')
+            
+            try:
+                if is_postgres:
+                    cursor.execute("SELECT * FROM users WHERE email = %s AND password = %s", (email, password))
+                else:
+                    cursor.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password))
+                
+                user = cursor.fetchone()
+                
+                if user:
+                    session["user_id"] = user[0]
+                    session["user_name"] = user[1]
+                    session["user_email"] = user[2]
+                    return redirect("/dashboard")
+                else:
+                    return render_template("login.html", error="E-mail ou senha incorretos")
+                    
+            except Exception as e:
+                print(f"❌ Erro na consulta: {e}")
+                init_db()  # Tentar criar tabelas se não existirem
+                return render_template("login.html", error="Sistema em inicialização. Tente novamente.")
 
-@app.route("/cadastro", methods=["GET", "POST"])
-def cadastro():
-    if request.method == "POST":
-        name = request.form.get("name")
-        email = request.form.get("email")
-        password = request.form.get("password")
-        income = request.form.get("income", 0)
+        return render_template("login.html")
+        
+    except Exception as e:
+        print(f"❌ Erro em login: {e}")
+        return render_template("login.html", error="Erro interno do servidor")
 
-        db = get_db()
-        cursor = db.cursor()
+@app.route("/registrar", methods=["GET", "POST"])
+def registrar():
+    try:
+        if request.method == "POST":
+            name = request.form.get("name", "").strip()
+            email = request.form.get("email", "").strip()
+            password = request.form.get("password", "").strip()
+            income = request.form.get("income", 0) or 0
 
-        try:
-            cursor.execute("INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
-                          (name, email, password, income))
-            db.commit()
-            return redirect("/login")
-        except sqlite3.IntegrityError:
-            return render_template("tcadastro.html", error="E-mail já cadastrado")
+            if not name or not email or not password:
+                return render_template("registrar.html", error="Todos os campos são obrigatórios")
 
-    return render_template("tcadastro.html")
+            db = get_db()
+            if not db:
+                return render_template("registrar.html", error="Erro de conexão com o banco de dados")
+
+            cursor = db.cursor()
+            is_postgres = app.config['DATABASE'].startswith('postgresql://')
+
+            try:
+                if is_postgres:
+                    cursor.execute(
+                        "INSERT INTO users (name, email, password, income) VALUES (%s, %s, %s, %s)",
+                        (name, email, password, float(income))
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO users (name, email, password, income) VALUES (?, ?, ?, ?)",
+                        (name, email, password, float(income))
+                    )
+                
+                return redirect("/login")
+                
+            except Exception as e:
+                print(f"❌ Erro no cadastro: {e}")
+                error_msg = "E-mail já cadastrado" if "unique" in str(e).lower() else "Erro no cadastro"
+                return render_template("registrar.html", error=error_msg)
+
+        return render_template("registrar.html")
+        
+    except Exception as e:
+        print(f"❌ Erro em registrar: {e}")
+        return render_template("registrar.html", error="Erro interno do servidor")
 
 @app.route("/logout")
 def logout():
@@ -185,277 +220,117 @@ def logout():
     return redirect("/login")
 
 # ------------------------------------------
-# ROTAS PRINCIPAIS
+# ROTAS PROTEGIDAS
 # ------------------------------------------
 
+def login_required(f):
+    def decorated_function(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
 @app.route("/dashboard")
+@login_required
 def dashboard():
-    if "user_id" not in session:
+    try:
+        return render_template("tdashboard.html", user=session.get("user_name", "Usuário"))
+    except Exception as e:
+        print(f"❌ Erro em dashboard: {e}")
         return redirect("/login")
-
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    # Calcular totais
-    cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = 'income'", (user_id,))
-    total_income = cursor.fetchone()[0] or 0
-
-    cursor.execute("SELECT SUM(amount) FROM transactions WHERE user_id = ? AND type = 'expense'", (user_id,))
-    total_expense = cursor.fetchone()[0] or 0
-
-    balance = total_income - total_expense
-
-    # Últimas transações
-    cursor.execute("""
-        SELECT t.*, c.name as category_name 
-        FROM transactions t 
-        LEFT JOIN categories c ON t.category_id = c.id 
-        WHERE t.user_id = ? 
-        ORDER BY t.date DESC 
-        LIMIT 5
-    """, (user_id,))
-    transactions = cursor.fetchall()
-
-    return render_template("tdashboard.html", 
-                         user=session.get("user_name"),
-                         total_income=total_income,
-                         total_expense=total_expense,
-                         balance=balance,
-                         transactions=transactions)
 
 @app.route("/transacoes")
+@login_required
 def transacoes():
-    if "user_id" not in session:
-        return redirect("/login")
-
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    # Buscar categorias do usuário
-    cursor.execute("SELECT * FROM categories WHERE user_id = ?", (user_id,))
-    categories = cursor.fetchall()
-
-    # Buscar transações
-    cursor.execute("""
-        SELECT t.*, c.name as category_name 
-        FROM transactions t 
-        LEFT JOIN categories c ON t.category_id = c.id 
-        WHERE t.user_id = ? 
-        ORDER BY t.date DESC
-    """, (user_id,))
-    transactions = cursor.fetchall()
-
-    return render_template("transacoes.html", 
-                         categories=categories, 
-                         transactions=transactions)
-
-@app.route("/api/transacao", methods=["POST"])
-def criar_transacao():
-    if "user_id" not in session:
-        return jsonify({"error": "Não autorizado"}), 401
-
-    user_id = session["user_id"]
-    data = request.json
-
-    db = get_db()
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("""
-            INSERT INTO transactions (user_id, type, category_id, amount, description, date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (user_id, data['type'], data.get('category_id'), data['amount'], 
-              data.get('description'), data['date']))
-        db.commit()
-        return jsonify({"success": True, "message": "Transação criada com sucesso"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return render_template("transacoes.html")
 
 @app.route("/categorias")
+@login_required
 def categorias():
-    if "user_id" not in session:
-        return redirect("/login")
-
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("SELECT * FROM categories WHERE user_id = ?", (user_id,))
-    categories = cursor.fetchall()
-
-    return render_template("tcategorias.html", categories=categories)
-
-@app.route("/api/categoria", methods=["POST"])
-def criar_categoria():
-    if "user_id" not in session:
-        return jsonify({"error": "Não autorizado"}), 401
-
-    user_id = session["user_id"]
-    data = request.json
-
-    db = get_db()
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("INSERT INTO categories (user_id, name, type) VALUES (?, ?, ?)",
-                      (user_id, data['name'], data['type']))
-        db.commit()
-        return jsonify({"success": True, "message": "Categoria criada com sucesso"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return render_template("tcategorias.html")
 
 @app.route("/metas")
+@login_required
 def metas():
-    if "user_id" not in session:
-        return redirect("/login")
-
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("SELECT * FROM categories WHERE user_id = ?", (user_id,))
-    categories = cursor.fetchall()
-
-    cursor.execute("""
-        SELECT g.*, c.name as category_name 
-        FROM goals g 
-        LEFT JOIN categories c ON g.category_id = c.id 
-        WHERE g.user_id = ?
-    """, (user_id,))
-    goals = cursor.fetchall()
-
-    return render_template("tmetas.html", categories=categories, goals=goals)
-
-@app.route("/api/meta", methods=["POST"])
-def criar_meta():
-    if "user_id" not in session:
-        return jsonify({"error": "Não autorizado"}), 401
-
-    user_id = session["user_id"]
-    data = request.json
-
-    db = get_db()
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("""
-            INSERT INTO goals (user_id, category_id, target_amount, start_date, end_date)
-            VALUES (?, ?, ?, ?, ?)
-        """, (user_id, data.get('category_id'), data['amount'], data['from'], data['to']))
-        db.commit()
-        return jsonify({"success": True, "message": "Meta criada com sucesso"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return render_template("tmetas.html")
 
 @app.route("/relatorios")
+@login_required
 def relatorios():
-    if "user_id" not in session:
-        return redirect("/login")
     return render_template("trelatorio.html")
 
 @app.route("/dicas")
+@login_required
 def dicas():
-    if "user_id" not in session:
-        return redirect("/login")
     return render_template("tDicas.html")
 
 @app.route("/empreendedor")
+@login_required
 def empreendedor():
-    if "user_id" not in session:
-        return redirect("/login")
-
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("SELECT * FROM materials WHERE user_id = ?", (user_id,))
-    materials = cursor.fetchall()
-
-    return render_template("empreendedor.html", materials=materials)
-
-@app.route("/api/material", methods=["POST"])
-def criar_material():
-    if "user_id" not in session:
-        return jsonify({"error": "Não autorizado"}), 401
-
-    user_id = session["user_id"]
-    data = request.json
-
-    db = get_db()
-    cursor = db.cursor()
-
-    try:
-        cursor.execute("""
-            INSERT INTO materials (user_id, name, total_value, quantity)
-            VALUES (?, ?, ?, ?)
-        """, (user_id, data['name'], data['totalValue'], data['qty']))
-        db.commit()
-        return jsonify({"success": True, "message": "Material criado com sucesso"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return render_template("empreendedor.html")
 
 @app.route("/compartilhada")
+@login_required
 def compartilhada():
-    if "user_id" not in session:
-        return redirect("/login")
+    return render_template("tcompartilhada.html")
 
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
-
-    cursor.execute("""
-        SELECT sa.* FROM shared_accounts sa
-        JOIN shared_account_members sam ON sa.id = sam.account_id
-        WHERE sam.user_id = ?
-    """, (user_id,))
-    shared_accounts = cursor.fetchall()
-
-    return render_template("tcompartilhada.html", shared_accounts=shared_accounts)
-
-@app.route("/configuracoes", methods=["GET", "POST"])
+@app.route("/configuracoes")
+@login_required
 def configuracoes():
-    if "user_id" not in session:
-        return redirect("/login")
+    return render_template("tConfiguracoes.html")
 
-    user_id = session["user_id"]
-    db = get_db()
-    cursor = db.cursor()
+# ------------------------------------------
+# ROTAS DE API E UTILITÁRIOS
+# ------------------------------------------
 
-    if request.method == "POST":
-        name = request.form.get("name")
-        email = request.form.get("email")
-        income = request.form.get("income", 0)
+@app.route("/health")
+def health_check():
+    db_status = "connected" if get_db() else "disconnected"
+    return jsonify({
+        "status": "healthy", 
+        "database": db_status,
+        "templates": "ok"
+    })
 
-        try:
-            cursor.execute("UPDATE users SET name=?, email=?, income=? WHERE id=?",
-                          (name, email, income, user_id))
-            db.commit()
-
-            session["user_name"] = name
-            session["user_email"] = email
-
-            cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
-            user = cursor.fetchone()
-            return render_template("tConfiguracoes.html", user=user, success="Alterações salvas!")
-        except sqlite3.IntegrityError:
-            cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
-            user = cursor.fetchone()
-            return render_template("tConfiguracoes.html", user=user, error="E-mail já está em uso")
-
-    cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
-    user = cursor.fetchone()
-    return render_template("tConfiguracoes.html", user=user)
+@app.route("/debug")
+def debug():
+    info = {
+        "python_version": os.sys.version,
+        "database_url": app.config['DATABASE'][:50] + "..." if len(app.config['DATABASE']) > 50 else app.config['DATABASE'],
+        "session_keys": list(session.keys()),
+        "templates_folder": app.template_folder,
+        "static_folder": app.static_folder
+    }
+    return jsonify(info)
 
 # ------------------------------------------
 # INICIALIZAÇÃO
 # ------------------------------------------
 
 if __name__ == "__main__":
-    # Criar banco de dados e tabelas
+    print("🚀 Iniciando AuraCash...")
+    print(f"📁 Diretório atual: {os.getcwd()}")
+    print(f"📊 Banco de dados: {app.config['DATABASE']}")
+    
+    # Listar arquivos para debug
+    try:
+        print("📁 Conteúdo do diretório:")
+        for item in os.listdir('.'):
+            print(f"   {item}")
+        if os.path.exists('templates'):
+            print("📄 Templates encontrados:")
+            for template in os.listdir('templates'):
+                print(f"   - {template}")
+    except Exception as e:
+        print(f"❌ Erro ao listar arquivos: {e}")
+    
+    # Inicializar banco
     with app.app_context():
         init_db()
     
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.environ.get("DEBUG", "False").lower() == "true"
+    
+    print(f"🌐 Servidor iniciando na porta: {port}")
+    app.run(host="0.0.0.0", port=port, debug=debug)
