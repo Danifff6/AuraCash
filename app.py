@@ -85,7 +85,7 @@ def cadastro():
         except:
             flash('Email já existe')
     
-    return render_template('public/tcadastro.html')
+    return render_template('templates/public/tcadastro.html')
 
 @app.route('/dashboard')
 def dashboard():
